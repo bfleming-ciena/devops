@@ -39,7 +39,7 @@ import boto.ec2
 import time
 
 LOGDIR = "logs/"
-REGIONS = ['us-east-1', 'us-west-2', 'us-west-2', 'ap-northeast-1']
+REGIONS = ['us-east-1', 'us-west-2', 'ap-northeast-1']
 
 
 def _reduce_to_date(fname):
@@ -68,7 +68,10 @@ def diff_recent_logs():
     import boto.sns
     if len(ldiff) > 0:
         if args.sns:
-            sns = boto.sns.connect_to_region('us-west-2')
+            sns = boto.sns.connect_to_region('us-west-2',
+ aws_access_key_id=assume_role.credentials.access_key,
+ aws_secret_access_key=assume_role.credentials.secret_key,
+ security_token=assume_role.credentials.session_token)
             sns.publish(args.sns, message=diffstr, subject="Security Notice!")
     else:
         print "It's fine"
@@ -114,7 +117,9 @@ def output_lines(lines):
 
 
 def get_iam_summary():
-    iam = boto.connect_iam(security_token=security_token)
+    iam = boto.connect_iam(aws_access_key_id=assume_role.credentials.access_key,
+ aws_secret_access_key=assume_role.credentials.secret_key,
+ security_token=assume_role.credentials.session_token)
     verbose("Getting account summary:")
     summary = iam.get_account_summary()
     debug(summary)
@@ -123,7 +128,9 @@ def get_iam_summary():
 
 def get_iam_user_info():
     # IAM user info
-    iam = boto.connect_iam(security_token=security_token)
+    iam = boto.connect_iam(aws_access_key_id=assume_role.credentials.access_key,
+ aws_secret_access_key=assume_role.credentials.secret_key,
+ security_token=assume_role.credentials.session_token)
     verbose("Getting IAM user info:")
     user_info = []
     users = iam.get_all_users().list_users_response.list_users_result.users
@@ -157,7 +164,9 @@ def get_iam_user_info():
 
 def get_iam_groups():
     # IAM groups
-    iam = boto.connect_iam(security_token=security_token)
+    iam = boto.connect_iam(aws_access_key_id=assume_role.credentials.access_key,
+ aws_secret_access_key=assume_role.credentials.secret_key,
+ security_token=assume_role.credentials.session_token)
     verbose("Getting IAM group info:")
     group_policy = []
     groups = iam.get_all_groups().list_groups_response.list_groups_result.groups
@@ -177,7 +186,9 @@ def get_iam_groups():
 
 def get_iam_roles():
     # IAM Roles
-    iam = boto.connect_iam(security_token=security_token)
+    iam = boto.connect_iam(aws_access_key_id=assume_role.credentials.access_key,
+ aws_secret_access_key=assume_role.credentials.secret_key,
+ security_token=assume_role.credentials.session_token)
     verbose("Getting IAM role info:")
     role_policy = []
     roles = iam.list_roles().list_roles_response.list_roles_result.roles
@@ -204,10 +215,16 @@ def get_iam_roles():
 def get_s3_bucket_policy(region):
     # S3 bucket policies
     verbose("Getting S3 bucket policies:")
-    s3 = boto.s3.connect_to_region(region)
+    s3 = boto.s3.connect_to_region(region,
+ aws_access_key_id=assume_role.credentials.access_key,
+ aws_secret_access_key=assume_role.credentials.secret_key,
+ security_token=assume_role.credentials.session_token)
     bucket_info = []
     buckets = s3.get_all_buckets()
+
     for bucket in buckets:
+        if "." in bucket.name:
+            continue
         try:
             policy = bucket.get_policy()
             bucket_info.append(config_line_policy(region + " s3:bucketpolicy", bucket.name, "", policy))
@@ -220,7 +237,10 @@ def get_s3_bucket_policy(region):
 def get_sqs_policy(region):
     # SQS queue policies
     verbose("Getting SQS queue policies:")
-    sqs = boto.sqs.connect_to_region(region)
+    sqs = boto.sqs.connect_to_region(region,
+ aws_access_key_id=assume_role.credentials.access_key,
+ aws_secret_access_key=assume_role.credentials.secret_key,
+ security_token=assume_role.credentials.session_token)
     queue_info = []
     queues = sqs.get_all_queues()
     for queue in queues:
@@ -236,7 +256,10 @@ def get_sqs_policy(region):
 def get_sns_topics(region):
     # SNS topic policies
     verbose("Getting SNS topic policies:")
-    sns = boto.sns.connect_to_region(region)
+    sns = boto.sns.connect_to_region(region,
+ aws_access_key_id=assume_role.credentials.access_key,
+ aws_secret_access_key=assume_role.credentials.secret_key,
+ security_token=assume_role.credentials.session_token)
     topic_info = []
     topics = sns.get_all_topics()
     topics = topics["ListTopicsResponse"]["ListTopicsResult"]["Topics"]
@@ -251,7 +274,10 @@ def get_sns_topics(region):
 def get_security_groups(region):
     # EC2 security groups
     sg_info = []
-    ec2 = boto.ec2.connect_to_region(region)
+    ec2 = boto.ec2.connect_to_region(region,
+ aws_access_key_id=assume_role.credentials.access_key,
+ aws_secret_access_key=assume_role.credentials.secret_key,
+ security_token=assume_role.credentials.session_token)
     groups = ec2.get_all_security_groups()
     for group in groups:
         for rule in group.rules:
@@ -264,8 +290,13 @@ def get_security_groups(region):
 # Requires EC2 Role or creds in your ~/.boto file that allows
 # access to get these things.
 def gen_report():
-
     report = []
+
+    # #debug
+    # report.extend(get_s3_bucket_policy("us-west-2"))
+    # #
+
+
     report.extend(get_iam_summary())
     report.extend(get_iam_user_info())
     report.extend(get_iam_groups())
@@ -330,7 +361,10 @@ def gen_and_diff(logdir="."):
     if len(ldiff) > 0:
 
         print "Found diffs.  Sending notification."
-        sns = boto.sns.connect_to_region('us-west-2')
+        sns = boto.sns.connect_to_region('us-west-2',
+ aws_access_key_id=assume_role.credentials.access_key,
+ aws_secret_access_key=assume_role.credentials.secret_key,
+ security_token=assume_role.credentials.session_token)
         diffstr = ''.join(ldiff)
         if args.sns:
             sns.publish(args.sns, message=diffstr, subject="Security Notice!")
@@ -353,13 +387,13 @@ if __name__ == "__main__":
 Overrides ~/.boto')
     # Not tested
     parser.add_argument('-t', '--security_token', help='security token (for use with temporary security credentials)')
-    parser.add_argument('-r', '--role', help='arn of role to assume')
+    parser.add_argument('-r', '--role', type=str, help='arn of role to assume')
     parser.add_argument('-s', '--sns', type=str, help='Send diff report to this arn::sns topic. \
 Assumes us-west-2 region.')
     parser.add_argument('-v', '--verbose', action="store_true", help='enable verbose mode')
     parser.add_argument('-d', '--debug', action="store_true", help='enable debug mode')
     parser.add_argument('-o', '--outfile', type=str, default="", help='Timestamp will be prefixed automatically')
-    parser.add_argument('-p', '--printo', type=str, default="", help='Print report only')
+    parser.add_argument('-p', '--print_only', action="store_true", help='Print report only')
 
     args = parser.parse_args()
 
@@ -379,16 +413,18 @@ Assumes us-west-2 region.')
     if args.outfile:
         args.outfile = LOGDIR + time.strftime("%Y-%m-%d_%H%M%S") + "_" + args.outfile
 
+    print args.role
     if args.role:
         sts = boto.connect_sts()
-        assumed_role = sts.assume_role(args.role, "SecAudit")
-        boto.config.set('Credentials', 'aws_access_key_id', value=assumed_role.credentials.access_key)
-        boto.config.set('Credentials', 'aws_secret_access_key', value=assumed_role.credentials.secret_key)
-        # This one needs to be checked, I am only guessing it is aws_security_token
-        boto.config.set('Credentials', 'aws_security_token', value=assumed_role.credentials.session_token)
-        # security_token = args.security_token
+        assume_role = sts.assume_role(args.role, "SecAudit")
 
-    if args.printo:
+        # boto.config.set('Credentials', 'aws_access_key_id', value=assumed_role.credentials.access_key)
+        # boto.config.set('Credentials', 'aws_secret_access_key', value=assumed_role.credentials.secret_key)
+        # # This one needs to be checked, I am only guessing it is aws_security_token
+        # boto.config.set('Credentials', 'aws_security_token', value=assumed_role.credentials.session_token)
+        # # security_token = args.security_token
+
+    if args.print_only:
         print gen_report()
 
     # Let's go!
