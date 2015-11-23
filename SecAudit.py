@@ -88,6 +88,7 @@ def verbose(str):
 
 
 def sha256(m):
+    m=''.join(sorted(m))
     return hashlib.sha256(m).hexdigest()
 
 
